@@ -59,8 +59,9 @@ auto get_roll() -> float
 
 struct config
 {
-    static constexpr auto cutoff_frequency() -> float { return 20.0f; } // Hz
-    static constexpr auto sample_period() -> float    { return 0.002f;}  // seconds
+    using value_type = float;
+    static constexpr auto cutoff_frequency() -> float { return 20.0f;  } // Hz
+    static constexpr auto sample_period()    -> float { return 0.002f; } // seconds
 };
 
 
@@ -74,7 +75,7 @@ auto p_controller(float roll) -> float
 
 void loop()
 {
-    auto lowpass = complementary_filter::lowpass<float, config>{};
+    auto lowpass = complementary_filter::lowpass<config>{};
 
     while (1)
     {
