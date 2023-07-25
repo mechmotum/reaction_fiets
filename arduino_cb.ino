@@ -64,6 +64,14 @@ struct config
 };
 
 
+auto p_controller(float roll) -> float
+{
+    auto gain = 50.f;  // A/rad
+
+    return roll*gain;
+}
+
+
 void loop()
 {
     auto lowpass = complementary_filter::lowpass<float, config>{};
@@ -108,18 +116,7 @@ void loop()
             Serial.println(static_cast<unsigned long>(time_serial));
 #endif
 
-            if (filtered_roll.value > 10. * 3.14 / 180.)
-            {
-                current = +15;
-            }
-            else if (filtered_roll.value < -10. * 3.14 / 180.)
-            {
-                current = -15;
-            }
-            else
-            {
-                current = 0;
-            }
+            current = p_controller(filtered_roll.value);
             write_command();
         }
     }
