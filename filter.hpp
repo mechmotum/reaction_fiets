@@ -1,7 +1,5 @@
 #pragma once
 
-#include <array>
-
 namespace numbers {
 
 template <class T>
@@ -79,10 +77,14 @@ struct highpass
 {
   using value_type = typename Config::value_type;
 
-  static constexpr auto w0 = 2 * numbers::pi_v<value_type> * Config::cutoff_frequency();
+  static constexpr auto w0 = 2 * numbers::pi<value_type>() * Config::cutoff_frequency();
   static constexpr auto dt = Config::sample_period();
 
-  using state_type = std::array<value_type, 2>;
+  struct state_type
+  {
+      value_type s0;
+      value_type s1;
+  };
 
   struct return_type
   {
@@ -91,10 +93,10 @@ struct highpass
   };
 
   value_type prev_unfiltered{};
-  state_type prev_state{};
+  state_type prev_state{{},{}};
 
   static constexpr auto h = dt;
-  static constexpr auto a0 = std::numbers::sqrt2_v<value_type> * h * w0;
+  static constexpr auto a0 = numbers::sqrt2<value_type>() * h * w0;
   static constexpr auto a1 = detail::squared(h);
   static constexpr auto a2 = detail::squared(w0);
   static constexpr auto a3 = a1 * a2;
@@ -108,16 +110,16 @@ struct highpass
 
     const auto xi = value;
     const auto xim1 = prev_unfiltered;
-    const auto z1im1 = prev_state[0];
-    const auto z1im2 = prev_state[1];
+    const auto z1im1 = prev_state.s0;
+    const auto z1im2 = prev_state.s1;
 
     const auto a7 =
-        a1 * xi + a1 * xim1 - a3 * z2im1 + a4 * z2im1 + 4 * h * z1im1 +
-        4 * z2im1;
+        a1 * xi + a1 * xim1 - a3 * z1im2 + a4 * z1im2 + 4 * h * z1im1 +
+        4 * z1im2;
 
     const auto z1i =
         a6 *
-        (a5 * (-a0 * z1im1 - a8 * z2im1 + h * xi + h * xim1 + 2 * z1im1) -
+        (a5 * (-a0 * z1im1 - a8 * z1im2 + h * xi + h * xim1 + 2 * z1im1) -
          a7 * a8) /
         (a0 + 2);
     const auto z2i = a6 * a7;
