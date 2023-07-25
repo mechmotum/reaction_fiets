@@ -2,6 +2,8 @@
 #include <Wire.h>
 #include "SparkFunLSM9DS1.h"
 
+#include "filter.hpp"
+
 //////////////////////////
 // LSM9DS1 Library Init //
 //////////////////////////
@@ -45,6 +47,8 @@ void setup()
                 "if the board jumpers are.");
         while (1);
     }
+
+    Serial.println("Done initializing");
 }
 
 auto get_roll() -> float
@@ -53,8 +57,17 @@ auto get_roll() -> float
   return roll;
 }
 
+struct config
+{
+    static constexpr auto cutoff_frequency() -> float { return 20.0f; } // Hz
+    static constexpr auto sample_period() -> float    { return 0.002f;}  // seconds
+};
+
+
 void loop()
 {
+    auto lowpass = complementary_filter::lowpass<float, config>{};
+
     while (1)
     {
         delay(10);
@@ -73,28 +86,33 @@ void loop()
             auto roll = get_roll();
             auto time_roll = micros() - time_s;
 
+            auto filtered_roll = lowpass(roll);
+            auto time_lowpass = micros() - time_s;
+
 #ifdef PRINT_ON_SERIAL
             Serial.print("roll: ");
-            Serial.println(roll * 180 / 3.1416);
+            Serial.println(filtered_roll.value * 180 / 3.1416);
             auto time_serial = micros() - time_s;
 #endif
 
 #ifdef PRINT_ON_SERIAL
-            Serial.print("timing: Available, read, convert, print: ");
+            Serial.print("timing: Available, read, convert, filter, print: ");
             Serial.print(static_cast<unsigned long>(time_available));
             Serial.print(", ");
             Serial.print(static_cast<unsigned long>(time_read));
             Serial.print(", ");
             Serial.print(static_cast<unsigned long>(time_roll));
             Serial.print(", ");
+            Serial.print(static_cast<unsigned long>(time_lowpass));
+            Serial.print(", ");
             Serial.println(static_cast<unsigned long>(time_serial));
 #endif
 
-            if (roll > 10. * 3.14 / 180.)
+            if (filtered_roll.value > 10. * 3.14 / 180.)
             {
                 current = +15;
             }
-            else if (roll < -10. * 3.14 / 180.)
+            else if (filtered_roll.value < -10. * 3.14 / 180.)
             {
                 current = -15;
             }
