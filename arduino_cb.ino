@@ -67,7 +67,7 @@ struct config
 
 auto p_controller(float roll) -> float
 {
-    auto gain = 50.f;  // A/rad
+    auto gain = -100.f;  // A/rad
 
     return roll*gain;
 }
