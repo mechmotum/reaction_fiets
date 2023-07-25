@@ -1,13 +1,19 @@
+#pragma once
+
+#include <array>
+
 namespace numbers {
 
 template <class T>
-constexpr auto pi() -> T{
-    return T(3.1415926535897932384626433);
+constexpr auto pi() -> T
+{
+  return T(3.1415926535897932384626433);
 }
 
 template <class T>
-constexpr auto sqrt2() -> T{
-    return T(1.41421356237309504880168872420969807856967187537694807317667973799 );
+constexpr auto sqrt2() -> T
+{
+  return T(1.41421356237309504880168872420969807856967187537694807317667973799);
 }
 
 }
@@ -19,15 +25,10 @@ template <class T>
 constexpr auto squared(T x) -> T { return x * x; };
 }
 
-template <
-    class T,
-    class Config
-    //const T cutoff_frequency,
-    //const T sample_period
->
+template <class Config>
 struct lowpass
 {
-  using value_type = T;
+  using value_type = typename Config::value_type;
 
   struct signal
   {
@@ -70,6 +71,62 @@ struct lowpass
     prev_unfiltered = x0;
     prev_filtered = {y0, yd0};
     return prev_filtered;
+  }
+};
+
+template <class Config>
+struct highpass
+{
+  using value_type = typename Config::value_type;
+
+  static constexpr auto w0 = 2 * numbers::pi_v<value_type> * Config::cutoff_frequency();
+  static constexpr auto dt = Config::sample_period();
+
+  using state_type = std::array<value_type, 2>;
+
+  struct return_type
+  {
+    value_type value;
+    state_type state;
+  };
+
+  value_type prev_unfiltered{};
+  state_type prev_state{};
+
+  static constexpr auto h = dt;
+  static constexpr auto a0 = std::numbers::sqrt2_v<value_type> * h * w0;
+  static constexpr auto a1 = detail::squared(h);
+  static constexpr auto a2 = detail::squared(w0);
+  static constexpr auto a3 = a1 * a2;
+  static constexpr auto a4 = 2 * a0;
+  static constexpr auto a5 = a3 + a4 + 4;
+  static constexpr auto a6 = 1 / a5;
+  static constexpr auto a8 = a2 * h;
+
+  auto operator()(value_type value) -> return_type
+  {
+
+    const auto xi = value;
+    const auto xim1 = prev_unfiltered;
+    const auto z1im1 = prev_state[0];
+    const auto z1im2 = prev_state[1];
+
+    const auto a7 =
+        a1 * xi + a1 * xim1 - a3 * z2im1 + a4 * z2im1 + 4 * h * z1im1 +
+        4 * z2im1;
+
+    const auto z1i =
+        a6 *
+        (a5 * (-a0 * z1im1 - a8 * z2im1 + h * xi + h * xim1 + 2 * z1im1) -
+         a7 * a8) /
+        (a0 + 2);
+    const auto z2i = a6 * a7;
+    const auto yi = (z1i - z1im1) / h;
+
+    prev_unfiltered = xi;
+    prev_state = {z1i, z2i};
+
+    return return_type{yi, prev_state};
   }
 };
 
