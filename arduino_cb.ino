@@ -1,24 +1,17 @@
 #include "VescUart.h"
+#include <Wire.h>
+#include "SparkFunLSM9DS1.h"
 
-static constexpr int pin_left_hard = 5;
-static constexpr int pin_left_soft = 7;
-static constexpr int pin_right_soft = 6;
-static constexpr int pin_right_hard = 4;
-
-static constexpr int soft_current = 20;
-static constexpr int hard_current = 60;
+//////////////////////////
+// LSM9DS1 Library Init //
+//////////////////////////
+// Use the LSM9DS1 class to create an object. [imu] can be
+// named anything, we'll refer to that throught the sketch.
+LSM9DS1 imu;
 
 static int current = 0;
 
-auto setup_io_pins() -> void
-{
-    pinMode(pin_left_hard, INPUT_PULLUP);
-    pinMode(pin_left_soft, INPUT_PULLUP);
-    pinMode(pin_right_soft, INPUT_PULLUP);
-    pinMode(pin_right_hard, INPUT_PULLUP);
-
-    pinMode(LED_BUILTIN, OUTPUT);
-}
+/* #define PRINT_ON_SERIAL 1 */
 
 auto write_command() -> void
 {
@@ -38,16 +31,26 @@ auto write_command() -> void
 
 void setup()
 {
-    setup_io_pins();
-
     Serial.begin(115200);
     while (!Serial) {};
+
+    Wire.begin();
+    if (imu.begin() == false) // with no arguments, this uses default addresses (AG:0x6B, M:0x1E) and i2c port (Wire).
+    {
+        Serial.println("Failed to communicate with LSM9DS1.");
+        Serial.println("Double-check wiring.");
+        Serial.println("Default settings in this sketch will " \
+                "work for an out of the box LSM9DS1 " \
+                "Breakout, but may need to be modified " \
+                "if the board jumpers are.");
+        while (1);
+    }
 }
 
-
-auto is_active(int pin) -> bool
+auto get_roll() -> float
 {
-    return !digitalRead(pin);
+  float roll = atan2(imu.ay, imu.az);
+  return roll;
 }
 
 void loop()
@@ -55,55 +58,51 @@ void loop()
     while (1)
     {
         delay(10);
-/*         delay(500); */
 
+        auto time_s = micros();
+        // Update the sensor values whenever new data is available
+        if ( imu.accelAvailable() )
         {
-            auto left_soft = is_active(pin_left_soft);
-            if (left_soft)
-            {
-                digitalWrite(LED_BUILTIN, HIGH);
-                current = -soft_current;
-                write_command();
-                continue;
-            }
-        }
+            auto time_available = micros() - time_s;
+            // To read from the accelerometer, first call the
+            // readAccel() function. When it exits, it'll update the
+            // ax, ay, and az variables with the most current data.
+            imu.readAccel();
+            auto time_read = micros() - time_s;
 
-        {
-            auto right_soft = is_active(pin_right_soft);
-            if (right_soft)
-            {
-                digitalWrite(LED_BUILTIN, HIGH);
-                current = +soft_current;
-                write_command();
-                continue;
-            }
-        }
+            auto roll = get_roll();
+            auto time_roll = micros() - time_s;
 
-        {
-            auto left_hard = is_active(pin_left_hard);
-            if (left_hard)
-            {
-                digitalWrite(LED_BUILTIN, HIGH);
-                current = -hard_current;
-                write_command();
-                continue;
-            }
-        }
+#ifdef PRINT_ON_SERIAL
+            Serial.print("roll: ");
+            Serial.println(roll * 180 / 3.1416);
+            auto time_serial = micros() - time_s;
+#endif
 
-        {
-            auto right_hard = is_active(pin_right_hard);
-            if (right_hard)
-            {
-                digitalWrite(LED_BUILTIN, HIGH);
-                current = +hard_current;
-                write_command();
-                continue;
-            }
-        }
+#ifdef PRINT_ON_SERIAL
+            Serial.print("timing: Available, read, convert, print: ");
+            Serial.print(static_cast<unsigned long>(time_available));
+            Serial.print(", ");
+            Serial.print(static_cast<unsigned long>(time_read));
+            Serial.print(", ");
+            Serial.print(static_cast<unsigned long>(time_roll));
+            Serial.print(", ");
+            Serial.println(static_cast<unsigned long>(time_serial));
+#endif
 
-        // if reach then no button is pressed: Set current to 0
-        digitalWrite(LED_BUILTIN, LOW);
-        current = 0;
-        write_command();
+            if (roll > 10. * 3.14 / 180.)
+            {
+                current = +15;
+            }
+            else if (roll < -10. * 3.14 / 180.)
+            {
+                current = -15;
+            }
+            else
+            {
+                current = 0;
+            }
+            write_command();
+        }
     }
 }
