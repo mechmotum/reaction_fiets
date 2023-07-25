@@ -78,8 +78,6 @@ void loop()
 
     while (1)
     {
-        delay(10);
-
         auto time_s = micros();
         // Update the sensor values whenever new data is available
         if ( imu.accelAvailable() )
